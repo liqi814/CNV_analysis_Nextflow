@@ -24,7 +24,7 @@ log.info """\
  samplelist     : ${Channel.fromPath(params.sampleList)}
  reference      : ${params.reference}
  outdir         : ${params.outdir}
- GATK			: ${params.GATK}
+ GATK		: ${params.GATK}
  """
 
 process CaseCollectRCs {
