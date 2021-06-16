@@ -16,6 +16,7 @@ params.Interval_1kb = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_1kb/hs37d5
 params.outdir = "/nfs/external/az-ipf-garcia/CNVanalysis_shortTLwoQV"
 params.WindowSizes = [300]
 
+sampleBAM_ch = Channel.fromPath(params.sampleList)
 WindowSizes = Channel.fromList(params.WindowSizes)
 
 log.info """\
@@ -25,10 +26,6 @@ log.info """\
  reference      : ${params.reference}
  outdir         : ${params.outdir}
  """
-
-Channel.fromPath(params.sampleList)
-	.map { it -> [it.getSimpleName, it] }
-	.set{sampleBAM_ch}
 
 process CaseCollectRCs {
 	publishDir "${sample_file.baseName}/case_RCs", mode: 'copy'
