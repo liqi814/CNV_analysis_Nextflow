@@ -9,15 +9,13 @@
 
 nextflow.enable.dsl=2
 
-params.sampleList = 'WGS_BAM_File/*.bam'
+params.sampleList = '/nfs/external/az-ipf-garcia/CNVanalysis_shortTLwoQV/WGS_BAM_File/*.bam'
 params.reference = "/nfs/seqscratch09/AZ-IPF/reference/hs37d5.fa" 
 params.Interval300bp = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_300bp/Interval_list/hs37d5.preprocessed_300bp.interval_list"
 params.Interval_1kb = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_1kb/hs37d5.preprocessed.1000bp.primary_contigs.interval_list"
 params.outdir = "/nfs/external/az-ipf-garcia/CNVanalysis_shortTLwoQV"
-params.WindowSizes = [300, 1000]
+params.WindowSizes = [300]
 
-
-sampleBAM_ch = Channel.fromPath(params.sampleList)
 WindowSizes = Channel.fromList(params.WindowSizes)
 
 log.info """\
@@ -28,10 +26,13 @@ log.info """\
  outdir         : ${params.outdir}
  """
 
+Channel.fromPath(params.sampleList)
+	.map { it -> [it.getSimpleName, it] }
+	.set{sampleBAM_ch}
 
 process CaseCollectRCs {
-	publishDir "$baseDir/case_RCs", mode: 'copy'
-	tag "$sample_file"
+	publishDir "${sample_file.baseName}/case_RCs", mode: 'copy'
+	tag "${sample_file.baseName}"
 	executor 'sge'
 	cpus 2
 	penv 'threaded'
@@ -45,20 +46,18 @@ process CaseCollectRCs {
 	val params.reference
 
 	output:
-	file ('*.clean_counts.tsv')
+	file ('*clean_counts.tsv')
 
 	script:
 	if( mode == 300)
 	"""
 	GATK="/nfs/goldstein/software/gatk-4.1.8.1/gatk-package-4.1.8.1-local.jar"
-	NAME=`basename $sample_file .bam`
-	java -jar \${GATK} CollectReadCounts -I $sample_file  -L $params.Interval300bp -R $params.reference --format TSV -imr OVERLAPPING_ONLY -O \${NAME}.300bp_clean_counts.tsv
+	java -jar \${GATK} CollectReadCounts -I $sample_file  -L $params.Interval300bp -R $params.reference --format TSV -imr OVERLAPPING_ONLY -O ${sample_file.baseName}.300bp_clean_counts.tsv
 	"""
 	else
 	"""
 	GATK="/nfs/goldstein/software/gatk-4.1.8.1/gatk-package-4.1.8.1-local.jar"
-        NAME=`basename $sample_file .bam`
-        java -jar \${GATK} CollectReadCounts -I $sample_file  -L $params.Interval_1kb -R $params.reference --format TSV -imr OVERLAPPING_ONLY -O \${NAME}.1kb_clean_counts.tsv
+    java -jar \${GATK} CollectReadCounts -I $sample_file  -L $params.Interval_1kb -R $params.reference --format TSV -imr OVERLAPPING_ONLY -O ${sample_file.baseName}.1kb_clean_counts.tsv
 	"""
 
 }
