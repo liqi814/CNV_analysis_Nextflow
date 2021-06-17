@@ -71,18 +71,83 @@ process DenoiseReadCounts {
 	"""
 	java -jar ${params.GATK} DenoiseReadCounts -I $readCount_file \
 	--count-panel-of-normals ${params.FemalePoN_300bp} \
-	--standardized-copy-ratios ${sample_file.baseName}_clean.standardizedCR.tsv \
+	--standardized-copy-ratios ${sample_file.baseName}.${mode}_clean.standardizedCR.tsv \
 	--denoised-copy-ratios ${sample_file.baseName}.${mode}_clean.denoisedCR.tsv
 	"""
 	else
 	"""
 	java -jar ${params.GATK} DenoiseReadCounts -I $readCount_file \
 	--count-panel-of-normals ${params.FemalePoN_1kb} \
-	--standardized-copy-ratios ${sample_file.baseName}_clean.standardizedCR.tsv \
+	--standardized-copy-ratios ${sample_file.baseName}.${mode}_clean.standardizedCR.tsv \
 	--denoised-copy-ratios ${sample_file.baseName}.${mode}_clean.denoisedCR.tsv
 	"""
 }
 
+process CollectAllelicCounts {
+	publishDir "${sample_file.baseName}/AllelicCounts", mode: 'copy'
+	tag "${sample_file.baseName}"
+
+	input:
+	file(sample_file) from Channel.fromPath(params.sampleList)
+	each mode from Channel.fromList(params.WindowSizes)
+
+	output:
+	file ('*_allelicCounts.tsv') into alleleCount_ch
+
+	script:
+	if( mode == 300)
+	"""
+	java -jar ${params.GATK} CollectAllelicCounts -I $sample_file \
+	-L $params.Interval300bp -R $params.reference \
+	-O ${sample_file.baseName}.${mode}_allelicCounts.tsv
+	"""
+	else
+	"""
+	java -jar ${params.GATK} CollectAllelicCounts -I $sample_file \
+	-L $params.Interval_1kb -R $params.reference \
+	-O ${sample_file.baseName}.${mode}_allelicCounts.tsv
+	"""
+}
+
+process ModelSegments {
+	tag "${sample_file.baseName}"
+
+	input:
+	file(sample_file) from Channel.fromPath(params.sampleList)
+	file(denoised_RCs) from denoised_RCs_ch
+	file(alleleCounts) from alleleCount_ch
+
+	output:
+	file ('*.cr.seg') into segments_ch
+
+	script:
+	"""
+	java -jar ${params.GATK} ModelSegments \
+	--denoised-copy-ratios $denoised_RCs --allelic-counts $alleleCounts \
+	--output ${params.outdir}/${sample_file.baseName}/ModelSegments \
+	--output-prefix ${sample_file.baseName}
+	"""
+}
+
+process CallCopyRatioSegments {
+	publishDir "${sample_file.baseName}/CopyRatioSegments", mode: 'copy'
+	tag "${sample_file.baseName}"
+
+	input:
+	file(segment_file) from segments_ch
+	file(sample_file) from Channel.fromPath(params.sampleList)
+
+	output:
+	file('*.called.seg')
+
+	scripts:
+	"""
+	java -jar ${params.GATK} CallCopyRatioSegments \
+	--input $segment_file
+	--output ${sample_file.baseName}.called.seg
+	"""
+
+}
 workflow.onComplete {
 	println ( workflow.success ? "COMPLETED!" : "FAILED" )
 }
