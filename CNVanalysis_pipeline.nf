@@ -140,7 +140,7 @@ process CallCopyRatioSegments {
 	scripts:
 	"""
 	java -jar ${params.GATK} CallCopyRatioSegments \
-	--input $segment_file
+	--input $segment_file \
 	--output ${sample_ID}.${mode}.called.seg
 	"""
 
