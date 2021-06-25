@@ -7,12 +7,6 @@
  * Author: Qi Li (ql2387)
  */
 
-Channel
-	.fromPath(params.sampleList)
-	.splitCsv(sep:'')
-	.into{bamFileLoc1; bamFileLoc2}
-
-
 params.gender = "F"
 if(params.gender == "F") {
         params.PoN_1kb = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_1kb/PoN/cnv_FemaleHFM_1kb.pon.hdf5"
@@ -23,6 +17,10 @@ else {
         params.PoN_300bp = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_300bp/PoN/cnv_MaleHFM.pon.hdf5"
 }
 
+Channel
+	.fromPath(params.sampleList)
+	.splitCsv(sep:'')
+	.into{bamFileLoc1; bamFileLoc2}
 
 log.info """\
  C N V - N F   P I P E L I N E
@@ -87,70 +85,45 @@ process DenoiseReadCounts {
 	"""
 }
 
-process CollectAllelicCounts {
-	publishDir "${sample_file.baseName}/AllelicCounts", mode: 'copy'
-	tag "${sample_file.baseName}"
-
-	input:
-	path(sample_file) from bamFileLoc2
-	each mode from Channel.fromList(params.WindowSizes)
-
-	output:
-	set val(sample_file.baseName), val(mode), file('*_allelicCounts.tsv') into alleleCount_ch
-
-	script:
-	if( mode == 300)
-	"""
-	java -jar ${params.GATK} CollectAllelicCounts -I $sample_file \
-	-L $params.Interval300bp -R $params.reference -imr OVERLAPPING_ONLY \
-	--disable-bam-index-caching True \
-	-O ${sample_file.baseName}.${mode}_allelicCounts.tsv
-	"""
-	else
-	"""
-	java -jar ${params.GATK} CollectAllelicCounts -I $sample_file \
-	-L $params.Interval_1kb -R $params.reference -imr OVERLAPPING_ONLY \
-	--disable-bam-index-caching True \
-	-O ${sample_file.baseName}.${mode}_allelicCounts.tsv
-	"""
-}
-
 process ModelSegments {
-	tag "${sample_ID}"
+        tag "${sample_ID}"
+        publishDir "$sample_ID/ModelSegments", mode: 'copy'
 
-	input:
-	set val(sample_ID), val(mode), val(count_files) from denoised_RCs_ch.mix(alleleCount_ch).groupTuple(by: [0,1])
+        input:
+        set val(sample_ID), val(mode), val(count_files) from denoised_RCs_ch
 
-	output:
-	set val(sample_ID), val(mode), file ('*.cr.seg') into segments_ch
+        output:
+        set val(sample_ID), val(mode), file ('*.cr.seg') into segments_ch
+        file "*"
 
-	script:
-	"""
-	java -jar ${params.GATK} ModelSegments \
-	--denoised-copy-ratios ${count_files[1]} --allelic-counts ${count_files[0]} \
-	--output ${params.outdir}/${sample_ID}/ModelSegments \
-	--output-prefix ${sample_ID}.${mode}
-	"""
+        script:
+        """
+        java -jar ${params.GATK} ModelSegments \
+        --denoised-copy-ratios ${count_files} \
+        --output . \
+        --output-prefix ${sample_ID}.${mode}
+        """
 }
 
 process CallCopyRatioSegments {
-	publishDir "$sample_ID/CopyRatioSegments", mode: 'copy'
-	tag "$sample_ID"
+        publishDir "$sample_ID/CopyRatioSegments", mode: 'copy'
+        tag "$sample_ID"
 
-	input:
-	set val(sample_ID), val(mode), file(segment_file) from segments_ch
+        input:
+        set val(sample_ID), val(mode), file(segment_file) from segments_ch
 
-	output:
-	file('*.called.seg')
+        output:
+        file('*.called.seg')
 
-	scripts:
-	"""
-	java -jar ${params.GATK} CallCopyRatioSegments \
-	--input $segment_file \
-	--output ${sample_ID}.${mode}.called.seg
-	"""
+        script:
+        """
+        java -jar ${params.GATK} CallCopyRatioSegments \
+        --input $segment_file \
+        --output ${sample_ID}.${mode}.called.seg
+        """
 
 }
+
 workflow.onComplete {
 	println ( workflow.success ? "COMPLETED!" : "FAILED" )
 }
