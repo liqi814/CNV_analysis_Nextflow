@@ -1,7 +1,7 @@
 import csv
 import pandas as pd
 
-sample_file_name = 'IPF_short_telo_noqv.csv'
+sample_file_name = 'data/IPF_short_telo_noqv.csv'
 
 sample_internal_name_list = []
 with open(sample_file_name, 'r') as csv_file:
@@ -16,7 +16,7 @@ sample_already_done = ['IPF0573', 'IPF1916', 'IPF3411', 'IPF-ACE041', 'IPF-ACE08
 sample_internal_name_list = [x for x in sample_internal_name_list if x not in sample_already_done]
 # 276 left
 
-with open('IPF_short_telo_noqv_finalList.csv', 'w') as csvfile:
+with open('data/IPF_short_telo_noqv_finalList.csv', 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=',')
     writer.writerow(sample_internal_name_list)
 

@@ -5,14 +5,15 @@ import pandas as pd
 import numpy as np
 import os
 import sys
+import datetime
 
-#input_file = sys.argv[1]
-#sample_name = sys.argv[2]
+input_file = sys.argv[1]
+sample_name = sys.argv[2]
 
-input_file = "C:\\Users\\ql2387\\Desktop\\2021-05_TERTp_CNV\\results\\IPF0284.194193\\CopyRatioSegments\\IPF0284.194193.1000.called.seg"
-output_file_prefix = "all_sample_called_seg"
-sample_name = "IPF0284.194193"
-RLCRs_no_Repeat_Masker_file = "C:\\Users\\ql2387\\Desktop\\CNV_analysis_Nextflow\\data\\RLCRs_no_Repeat_Masker\\RLCRs_no_Repeat_Masker.txt"
+# input_file = "C:\\Users\\ql2387\\Desktop\\2021-05_TERTp_CNV\\results\\IPF0284.194193\\CopyRatioSegments\\IPF0284.194193.1000.called.seg"
+output_file_prefix = "/nfs/external/az-ipf-garcia/CNVanalysis/" + str(datetime.datetime.now())[:10] + "_sample_called_seg"
+# sample_name = "IPF0284.194193"
+RLCRs_no_Repeat_Masker_file = "/nfs/external/az-ipf-garcia/reference/RLCRs_no_Repeat_Masker.txt"
 
 RLCRs_no_Repeat_Masker = pd.read_csv(RLCRs_no_Repeat_Masker_file, sep="\t", names=['CONTIG', 'REGION_START', 'REGION_END', 'REGION'])
 RLCRs_no_Repeat_Masker['CONTIG'] = RLCRs_no_Repeat_Masker['CONTIG'].map(lambda x: x.lstrip('chr'))
@@ -26,12 +27,12 @@ with open (input_file, 'r') as file:
         if line.startswith("@"):
             continue
         else:
-            called_seg.append(line.strip().split(sep="\\t"))
+            called_seg.append(line.strip().split(sep="\t"))
 
 called_seg = pd.DataFrame(called_seg)
 called_seg.rename(columns=called_seg.iloc[0], inplace = True)
 called_seg = called_seg[1:]
-called_seg = called_seg[called_seg.CALL != '0']
+called_seg = called_seg[called_seg['CALL'] != '0']
 called_seg['SAMPLE_NAME'] = sample_name
 called_seg[['START', 'END', 'NUM_POINTS_COPY_RATIO', 'MEAN_LOG2_COPY_RATIO']] = called_seg[[ 'START', 'END', 'NUM_POINTS_COPY_RATIO', 'MEAN_LOG2_COPY_RATIO']].apply(pd.to_numeric)
 
@@ -57,4 +58,12 @@ else:
     called_seg.to_csv(output_file_prefix + '_wRLCRinfo.csv', mode='a', header=False, index=False)
 
 called_seg['SV_type'] = called_seg.apply(lambda row : 'DEL' if row.CALL == '-' else 'DUP', axis=1)
-called_seg[['CONTIG', 'START', 'END', 'SV_type']].to_csv(output_file_prefix + '.bed', sep='\t', mode='a', header=False, index=False)
+
+if not os.path.exists(output_file_prefix + '.bed'):
+    called_seg[['CONTIG', 'START', 'END', 'SV_type', 'NUM_POINTS_COPY_RATIO', 'MEAN_LOG2_COPY_RATIO', 'CALL', 'SAMPLE_NAME']]\
+    .to_csv(output_file_prefix + '.bed', sep='\t', header=True, index=False)
+else:
+    called_seg[
+        ['CONTIG', 'START', 'END', 'SV_type', 'NUM_POINTS_COPY_RATIO', 'MEAN_LOG2_COPY_RATIO', 'CALL', 'SAMPLE_NAME',
+         'overlapped_RLCR']] \
+        .to_csv(output_file_prefix + '.bed', sep='\t', mode='a', header=False, index=False)
