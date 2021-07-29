@@ -9,11 +9,11 @@
 
 params.gender = "F"
 if(params.gender == "F") {
-        params.PoN_1kb = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_1kb/PoN/cnv_FemaleHFM_1kb.pon.hdf5"
+        params.PoN_1kb = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_1kb_old/PoN/cnv_FemaleHFM_1kb.pon.hdf5"
         params.PoN_300bp = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_300bp/PoN/cnv_FemaleHFM.pon.hdf5"
 }
 else {
-        params.PoN_1kb = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_1kb/PoN/cnv_MaleHFM_1kb.pon.hdf5"
+        params.PoN_1kb = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_1kb_old/PoN/cnv_MaleHFM_1kb.pon.hdf5"
         params.PoN_300bp = "/nfs/projects/CNV_WGS/GATK_gCNV/RCs/schizo_HFM_300bp/PoN/cnv_MaleHFM.pon.hdf5"
 }
 
@@ -22,12 +22,12 @@ Channel
 	.splitCsv(sep:'')
 	.into{bamFileLoc1; bamFileLoc2}
 
+
 log.info """\
  C N V - N F   P I P E L I N E
  ===================================
  samplelist     : ${Channel.fromPath(params.sampleList)}
  reference      : ${params.reference}
- outdir         : ${params.outdir}
  GATK           : ${params.GATK}
  """
 
@@ -72,6 +72,7 @@ process DenoiseReadCounts {
 	if( mode == 300)
 	"""
 	java -jar ${params.GATK} DenoiseReadCounts -I $readCount_file \
+	--annotated-intervals ${params.Annotated_300bp} \
 	--count-panel-of-normals ${params.PoN_300bp} \
 	--standardized-copy-ratios ${sample_ID}.${mode}_clean.standardizedCR.tsv \
 	--denoised-copy-ratios ${sample_ID}.${mode}_clean.denoisedCR.tsv
@@ -79,6 +80,7 @@ process DenoiseReadCounts {
 	else
 	"""
 	java -jar ${params.GATK} DenoiseReadCounts -I $readCount_file \
+	--annotated-intervals ${params.Annotated_1kb} \
 	--count-panel-of-normals ${params.PoN_1kb} \
 	--standardized-copy-ratios ${sample_ID}.${mode}_clean.standardizedCR.tsv \
 	--denoised-copy-ratios ${sample_ID}.${mode}_clean.denoisedCR.tsv
@@ -86,42 +88,42 @@ process DenoiseReadCounts {
 }
 
 process ModelSegments {
-        tag "${sample_ID}"
-        publishDir "$sample_ID/ModelSegments", mode: 'copy'
+	tag "${sample_ID}"
+	publishDir "$sample_ID/ModelSegments", mode: 'copy'
 
-        input:
-        set val(sample_ID), val(mode), val(count_files) from denoised_RCs_ch
+	input:
+	set val(sample_ID), val(mode), val(count_files) from denoised_RCs_ch
 
-        output:
-        set val(sample_ID), val(mode), file ('*.cr.seg') into segments_ch
-        file "*"
+	output:
+	set val(sample_ID), val(mode), file ('*.cr.seg') into segments_ch
+	file "*"
 
-        script:
-        """
-        java -jar ${params.GATK} ModelSegments \
-        --denoised-copy-ratios ${count_files} \
-        --output . \
-        --output-prefix ${sample_ID}.${mode}
-        """
+	script:
+	"""
+	java -jar ${params.GATK} ModelSegments \
+	--denoised-copy-ratios ${count_files} \
+	--output . \
+	--output-prefix ${sample_ID}.${mode}
+	"""
 }
 
 process CallCopyRatioSegments {
-        publishDir "$sample_ID/CopyRatioSegments", mode: 'copy'
-        tag "$sample_ID"
+	publishDir "$sample_ID/CopyRatioSegments", mode: 'copy'
+	tag "$sample_ID"
 
-        input:
-        set val(sample_ID), val(mode), file(segment_file) from segments_ch
+	input:
+	set val(sample_ID), val(mode), file(segment_file) from segments_ch
 
-        output:
-        file('*.called.seg')
+	output:
+	set val(sample_ID), file('*.called.seg') into calledSegments_ch
+	file "*"
 
-        script:
-        """
-        java -jar ${params.GATK} CallCopyRatioSegments \
-        --input $segment_file \
-        --output ${sample_ID}.${mode}.called.seg
-        """
-
+	script:
+	"""
+	java -jar ${params.GATK} CallCopyRatioSegments \
+	--input $segment_file \
+	--output ${sample_ID}.${mode}.called.seg
+	"""
 }
 
 workflow.onComplete {
